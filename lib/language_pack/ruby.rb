@@ -8,7 +8,8 @@ require "language_pack/bundler_lockfile"
 class LanguagePack::Ruby < LanguagePack::Base
   include LanguagePack::BundlerLockfile
   extend LanguagePack::BundlerLockfile
-
+  GSL_VENDOR_URL       = "https://s3.amazonaws.com/gsl_bin/gsl-1.15.tgz"
+  
   BUILDPACK_VERSION   = "v52"
   LIBYAML_VERSION     = "0.1.4"
   LIBYAML_PATH        = "libyaml-#{LIBYAML_VERSION}"
@@ -54,8 +55,9 @@ class LanguagePack::Ruby < LanguagePack::Base
       "LANG"     => "en_US.UTF-8",
       "PATH"     => default_path,
       "GEM_PATH" => slug_vendor_base,
+      "LD_LIBRARY_PATH" => ld_path,
     }
-
+    
     ruby_version_jruby? ? vars.merge("JAVA_OPTS" => default_java_opts, "JRUBY_OPTS" => default_jruby_opts) : vars
   end
 
@@ -74,6 +76,9 @@ class LanguagePack::Ruby < LanguagePack::Base
     setup_language_pack_environment
     setup_profiled
     allow_git do
+      install_gsl
+      run("cp -R vendor/gsl-1 /app/vendor/gsl")
+      run("cp -R vendor/gsl-1 /app/vendor/gsl-1")      
       install_language_pack_gems
       build_bundler
       create_database_yml
@@ -87,7 +92,12 @@ private
   # the base PATH environment variable to be used
   # @return [String] the resulting PATH
   def default_path
-    "bin:#{slug_vendor_base}/bin:/usr/local/bin:/usr/bin:/bin"
+    "bin:#{slug_vendor_base}/bin:/usr/local/bin:/usr/bin:/bin:/app/vendor/gsl-1/bin"
+  end
+  
+  
+  def ld_path
+    "/app/vendor/gsl-1/lib"
   end
 
   # the relative path to the bundler directory of gems
@@ -442,6 +452,16 @@ ERROR
 
         error error_message
       end
+    end
+  end
+
+
+  def install_gsl
+    topic("Installing gsl")
+    bin_dir = "vendor/gsl-1"
+    FileUtils.mkdir_p bin_dir
+    Dir.chdir(bin_dir) do |dir|
+      run("curl #{GSL_VENDOR_URL} -s -o - | tar xzf -")
     end
   end
 
